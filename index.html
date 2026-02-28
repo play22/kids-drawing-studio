@@ -151,7 +151,14 @@
     function pushHistory(){ history.push(canvas.toDataURL('image/png')); if(history.length>25)history.shift(); future.length=0; }
     function restoreFrom(dataUrl){ const img=new Image(); img.onload=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height)}; img.src=dataUrl; }
     function setBackground(kind){ const g={white:'#fff',sky:'#e0f2fe',grass:'#dcfce7',sunset:'#fde68a'}[kind]||'#fff'; ctx.save();ctx.globalCompositeOperation='destination-over';ctx.fillStyle=g;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore(); }
-    function getPos(e){ const r=canvas.getBoundingClientRect(); const t=e.touches?.[0]||e; return {x:Math.round((t.clientX-r.left)*(canvas.width/r.width)),y:Math.round((t.clientY-r.top)*(canvas.height/r.height))}; }
+    function getPos(e){
+      const r=canvas.getBoundingClientRect();
+      const t = e.touches?.[0] || e.changedTouches?.[0] || e;
+      return {
+        x: Math.round((t.clientX-r.left)*(canvas.width/r.width)),
+        y: Math.round((t.clientY-r.top)*(canvas.height/r.height))
+      };
+    }
 
     function startDraw(e){
       e.preventDefault(); const p=getPos(e);
