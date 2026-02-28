@@ -157,7 +157,17 @@
     function awardStars(n){ stars+=n; starsEl.textContent=stars; if(duel.active){ duel.scores[duel.player]+=n; p1El.textContent=duel.scores[1]; p2El.textContent=duel.scores[2]; }}
     function pushHistory(){ history.push(canvas.toDataURL('image/png')); if(history.length>25)history.shift(); future.length=0; }
     function restoreFrom(dataUrl){ const img=new Image(); img.onload=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height)}; img.src=dataUrl; }
-    function setBackground(kind){ const g={white:'#fff',sky:'#e0f2fe',grass:'#dcfce7',sunset:'#fde68a'}[kind]||'#fff'; ctx.save();ctx.globalCompositeOperation='destination-over';ctx.fillStyle=g;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore(); }
+    function setBackground(kind){
+      const g={white:'#fff',sky:'#e0f2fe',grass:'#dcfce7',sunset:'#fde68a'}[kind]||'#fff';
+      const temp=document.createElement('canvas');
+      temp.width=canvas.width; temp.height=canvas.height;
+      const t=temp.getContext('2d');
+      t.drawImage(canvas,0,0);
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle=g;
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(temp,0,0);
+    }
     function getPos(e){ const r=canvas.getBoundingClientRect(); return {x:Math.round((e.clientX-r.left)*(canvas.width/r.width)), y:Math.round((e.clientY-r.top)*(canvas.height/r.height))}; }
 
     function startDraw(e){
@@ -259,6 +269,7 @@
     document.getElementById('customColor').oninput=e=>{ color=e.target.value; document.querySelectorAll('.swatch').forEach(b=>b.classList.remove('active')); };
     document.getElementById('size').oninput=e=>brush=Number(e.target.value);
     document.getElementById('background').onchange=e=>{ pushHistory(); setBackground(e.target.value); };
+    document.getElementById('templateSelect').onchange=e=>drawTemplate(e.target.value);
     document.getElementById('loadTemplate').onclick=()=>drawTemplate(document.getElementById('templateSelect').value);
 
     document.getElementById('stamp-star').onclick=()=>stampMode='star';
