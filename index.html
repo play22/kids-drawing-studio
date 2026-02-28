@@ -11,7 +11,6 @@
     .app{max-width:1200px;margin:0 auto;background:#ffffffd9;backdrop-filter:blur(2px);min-height:100vh;display:grid;grid-template-rows:auto 1fr}
     .top{padding:10px;border-bottom:1px solid var(--line);background:var(--bg);display:grid;gap:8px}
     .status{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .challenge{background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:7px;font-weight:700;color:#3730a3;flex:1;min-width:220px}
     .score{font-weight:800;color:#0f766e}
     .layout{display:grid;grid-template-columns:1fr 320px;gap:10px;padding:10px}
     .board-box{border:2px dashed #93c5fd;border-radius:14px;background:#fff;overflow:hidden;display:grid;place-items:center;min-height:520px}
@@ -46,8 +45,6 @@
   <div class="app">
     <div class="top">
       <div class="status">
-        <div class="challenge" id="challenge">משימה: ציירי גן שעשועים 🎠</div>
-        <button id="newChallenge" class="primary">משימה חדשה</button>
         <div class="score">כוכבים: <span id="stars">0</span> ⭐</div>
       </div>
     </div>
@@ -103,6 +100,7 @@
             <label>דף צביעה</label>
             <select id="templateSelect"><option value="none">בלי תבנית</option><option value="house">בית</option><option value="cat">חתול</option><option value="butterfly">פרפר</option><option value="rocket">חללית</option></select>
             <button id="loadTemplate">הצג תבנית</button>
+            <button id="smartFill" class="active">🔒 צביעה בתוך קווים</button>
           </div>
 
           <div class="row" style="margin-top:8px">
@@ -114,17 +112,9 @@
             <button id="save" class="primary">שמור ציור</button>
           </div>
 
-          <details style="margin-top:8px">
-            <summary>דו-קרב 2 שחקנים</summary>
-            <div class="row" style="margin-top:8px">🎮 מצב: <span id="duelStatus">כבוי</span></div>
-            <div class="row">שחקן: <span id="duelPlayer">-</span> | זמן: <span id="duelTime">0</span> שנ'</div>
-            <div class="row">ניקוד: 1=<span id="p1">0</span> | 2=<span id="p2">0</span></div>
-            <button id="startDuel">התחל דו-קרב (60 שנ׳ לכל שחקן)</button>
-          </details>
-
           <div class="row" style="margin-top:8px"><b>גלריה</b></div>
           <div id="gallery" class="cards"></div>
-          <div class="hint">דפי צביעה נטענים בשכבה נפרדת — אי אפשר למחוק את קווי המתאר שלהם.</div>
+          <div class="hint">קווי התבנית נמצאים בשכבה מוגנת (אי אפשר למחוק אותם). במצב נעילה, מילוי נעצר בקווי המתאר.</div>
         </details>
       </aside>
     </div>
@@ -134,53 +124,37 @@
     const canvas = document.getElementById('board');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const templateCanvas = document.getElementById('templateLayer');
-    const tctx = templateCanvas.getContext('2d');
+    const tctx = templateCanvas.getContext('2d', { willReadFrequently: true });
 
     const starsEl = document.getElementById('stars');
-    const challengeEl = document.getElementById('challenge');
     const galleryEl = document.getElementById('gallery');
     const advancedPanel = document.getElementById('advancedPanel');
 
-    const duelStatusEl = document.getElementById('duelStatus');
-    const duelPlayerEl = document.getElementById('duelPlayer');
-    const duelTimeEl = document.getElementById('duelTime');
-    const p1El = document.getElementById('p1');
-    const p2El = document.getElementById('p2');
-
-    const challenges = ['ציירי גן שעשועים 🎠','ציירי נסיכה וכתר 👑','ציירי דינוזאור ידידותי 🦕','ציירי ארמון קסום 🏰','ציירי חלל עם כוכבים 🚀','ציירי חד־קרן 🦄','ציירי חוף ים קיצי 🏖️'];
-
     let color='#ef4444', brush=7, drawing=false, tool='pen', stars=0, stampMode=null;
-    let startPoint=null, shapeSnapshot=null, lastPos=null;
+    let startPoint=null, shapeSnapshot=null, lastPos=null, smartFill=true;
     const history=[], future=[];
-    const duel={active:false,player:1,timeLeft:0,timer:null,scores:[0,0,0]};
 
-    function awardStars(n){ stars+=n; starsEl.textContent=stars; if(duel.active){ duel.scores[duel.player]+=n; p1El.textContent=duel.scores[1]; p2El.textContent=duel.scores[2]; }}
+    function awardStars(n){ stars+=n; starsEl.textContent=stars; }
     function pushHistory(){ history.push(canvas.toDataURL('image/png')); if(history.length>25)history.shift(); future.length=0; }
     function restoreFrom(dataUrl){ const img=new Image(); img.onload=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height)}; img.src=dataUrl; }
+
     function setBackground(kind){
       const g={white:'#fff',sky:'#e0f2fe',grass:'#dcfce7',sunset:'#fde68a'}[kind]||'#fff';
-      const temp=document.createElement('canvas');
-      temp.width=canvas.width; temp.height=canvas.height;
-      const t=temp.getContext('2d');
-      t.drawImage(canvas,0,0);
+      const temp=document.createElement('canvas'); temp.width=canvas.width; temp.height=canvas.height;
+      const t=temp.getContext('2d'); t.drawImage(canvas,0,0);
       ctx.clearRect(0,0,canvas.width,canvas.height);
-      ctx.fillStyle=g;
-      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle=g; ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.drawImage(temp,0,0);
     }
+
     function getPos(e){ const r=canvas.getBoundingClientRect(); return {x:Math.round((e.clientX-r.left)*(canvas.width/r.width)), y:Math.round((e.clientY-r.top)*(canvas.height/r.height))}; }
 
     function startDraw(e){
       e.preventDefault();
       const p=getPos(e); lastPos=p;
-
       if(stampMode){ pushHistory(); drawStamp(stampMode,p.x,p.y); stampMode=null; return; }
       if(tool==='fill'){ pushHistory(); floodFill(p.x,p.y,hexToRgba(color)); awardStars(1); return; }
-
-      drawing=true;
-      pushHistory();
-      startPoint=p;
-
+      drawing=true; pushHistory(); startPoint=p;
       if(['line','rect','circle'].includes(tool)) shapeSnapshot=ctx.getImageData(0,0,canvas.width,canvas.height);
       else { ctx.beginPath(); ctx.moveTo(p.x,p.y); }
     }
@@ -190,28 +164,14 @@
       e.preventDefault();
       const p=getPos(e); lastPos=p;
       ctx.lineCap='round'; ctx.lineJoin='round'; ctx.lineWidth=brush;
-
-      if(tool==='pen' || tool==='eraser'){
-        ctx.strokeStyle = tool==='eraser' ? '#ffffff' : color;
-        ctx.lineTo(p.x,p.y); ctx.stroke();
-        return;
-      }
-
-      if(['line','rect','circle'].includes(tool)){
-        ctx.putImageData(shapeSnapshot,0,0);
-        ctx.strokeStyle=color;
-        drawShapePreview(startPoint,p,tool);
-      }
+      if(tool==='pen' || tool==='eraser'){ ctx.strokeStyle = tool==='eraser' ? '#ffffff' : color; ctx.lineTo(p.x,p.y); ctx.stroke(); return; }
+      if(['line','rect','circle'].includes(tool)){ ctx.putImageData(shapeSnapshot,0,0); ctx.strokeStyle=color; drawShapePreview(startPoint,p,tool); }
     }
 
     function endDraw(e){
       if(!drawing) return;
       const p = e ? getPos(e) : lastPos;
-      if(['line','rect','circle'].includes(tool) && p){
-        ctx.putImageData(shapeSnapshot,0,0);
-        ctx.strokeStyle=color;
-        drawShapePreview(startPoint,p,tool);
-      }
+      if(['line','rect','circle'].includes(tool) && p){ ctx.putImageData(shapeSnapshot,0,0); ctx.strokeStyle=color; drawShapePreview(startPoint,p,tool); }
       drawing=false; startPoint=null; shapeSnapshot=null; awardStars(1);
     }
 
@@ -232,30 +192,43 @@
       ctx.restore(); awardStars(1);
     }
 
-    function clearTemplate(){ tctx.clearRect(0,0,templateCanvas.width,templateCanvas.height); }
-
     function drawTemplate(name){
-      clearTemplate();
+      tctx.clearRect(0,0,templateCanvas.width,templateCanvas.height);
       tctx.strokeStyle='#111827'; tctx.lineWidth=4; tctx.lineJoin='round'; tctx.lineCap='round';
-
       if(name==='house'){ tctx.strokeRect(300,250,360,230); tctx.beginPath(); tctx.moveTo(280,250); tctx.lineTo(480,120); tctx.lineTo(680,250); tctx.stroke(); tctx.strokeRect(445,360,70,120); tctx.strokeRect(355,300,70,60); tctx.strokeRect(535,300,70,60); }
       if(name==='cat'){ tctx.beginPath(); tctx.arc(480,320,130,0,Math.PI*2); tctx.stroke(); tctx.beginPath(); tctx.moveTo(390,220); tctx.lineTo(430,130); tctx.lineTo(470,220); tctx.moveTo(490,220); tctx.lineTo(530,130); tctx.lineTo(570,220); tctx.stroke(); tctx.beginPath(); tctx.arc(435,305,12,0,Math.PI*2); tctx.arc(525,305,12,0,Math.PI*2); tctx.stroke(); tctx.beginPath(); tctx.arc(480,350,16,0,Math.PI*2); tctx.stroke(); }
       if(name==='butterfly'){ tctx.beginPath(); tctx.ellipse(410,320,110,140,0.6,0,Math.PI*2); tctx.ellipse(550,320,110,140,-0.6,0,Math.PI*2); tctx.stroke(); tctx.beginPath(); tctx.moveTo(480,170); tctx.lineTo(480,470); tctx.stroke(); }
       if(name==='rocket'){ tctx.beginPath(); tctx.moveTo(480,120); tctx.lineTo(570,270); tctx.lineTo(570,450); tctx.lineTo(390,450); tctx.lineTo(390,270); tctx.closePath(); tctx.stroke(); tctx.beginPath(); tctx.arc(480,280,45,0,Math.PI*2); tctx.stroke(); tctx.beginPath(); tctx.moveTo(390,420); tctx.lineTo(320,470); tctx.lineTo(390,470); tctx.stroke(); tctx.beginPath(); tctx.moveTo(570,420); tctx.lineTo(640,470); tctx.lineTo(570,470); tctx.stroke(); }
-
       if(name!=='none') awardStars(2);
     }
 
     function hexToRgba(hex){ const h=hex.replace('#',''); return [parseInt(h.substring(0,2),16),parseInt(h.substring(2,4),16),parseInt(h.substring(4,6),16),255]; }
-    function floodFill(x,y,newColor){ const img=ctx.getImageData(0,0,canvas.width,canvas.height),d=img.data; const idx=(y*canvas.width+x)*4; const target=[d[idx],d[idx+1],d[idx+2],d[idx+3]]; if(target.every((v,i)=>v===newColor[i])) return; const stack=[[x,y]], match=i=>d[i]===target[0]&&d[i+1]===target[1]&&d[i+2]===target[2]&&d[i+3]===target[3]; while(stack.length){ const [cx,cy]=stack.pop(); if(cx<0||cy<0||cx>=canvas.width||cy>=canvas.height) continue; const i=(cy*canvas.width+cx)*4; if(!match(i)) continue; d[i]=newColor[0]; d[i+1]=newColor[1]; d[i+2]=newColor[2]; d[i+3]=newColor[3]; stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]); } ctx.putImageData(img,0,0); }
+
+    function floodFill(x,y,newColor){
+      const img=ctx.getImageData(0,0,canvas.width,canvas.height), d=img.data;
+      const templateData=tctx.getImageData(0,0,templateCanvas.width,templateCanvas.height).data;
+      const idx=(y*canvas.width+x)*4;
+      const target=[d[idx],d[idx+1],d[idx+2],d[idx+3]];
+      if(target.every((v,i)=>v===newColor[i])) return;
+
+      const isTemplateLine=(i)=>templateData[i+3] > 10;
+      const stack=[[x,y]];
+      const match=(i)=>d[i]===target[0]&&d[i+1]===target[1]&&d[i+2]===target[2]&&d[i+3]===target[3];
+
+      while(stack.length){
+        const [cx,cy]=stack.pop();
+        if(cx<0||cy<0||cx>=canvas.width||cy>=canvas.height) continue;
+        const i=(cy*canvas.width+cx)*4;
+        if(smartFill && isTemplateLine(i)) continue;
+        if(!match(i)) continue;
+        d[i]=newColor[0]; d[i+1]=newColor[1]; d[i+2]=newColor[2]; d[i+3]=newColor[3];
+        stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+      }
+      ctx.putImageData(img,0,0);
+    }
+
     function saveToGallery(dataUrl){ const btn=document.createElement('button'); btn.textContent=`ציור ${galleryEl.children.length+1}`; btn.onclick=()=>restoreFrom(dataUrl); galleryEl.prepend(btn); if(galleryEl.children.length>8) galleryEl.removeChild(galleryEl.lastChild); }
 
-    function updateDuelUI(){ duelStatusEl.textContent=duel.active?'פעיל':'כבוי'; duelPlayerEl.textContent=duel.active?`שחקן ${duel.player}`:'-'; duelTimeEl.textContent=duel.timeLeft; p1El.textContent=duel.scores[1]; p2El.textContent=duel.scores[2]; }
-    function stopDuel(msg){ clearInterval(duel.timer); duel.active=false; duel.timeLeft=0; updateDuelUI(); if(msg) setTimeout(()=>alert(msg),30); }
-    function switchTurn(){ if(duel.player===1){ duel.player=2; duel.timeLeft=60; ctx.clearRect(0,0,canvas.width,canvas.height); setTimeout(()=>alert('תור שחקן 2!'),30); } else { const w=duel.scores[1]===duel.scores[2]?'תיקו!':(duel.scores[1]>duel.scores[2]?'שחקן 1 ניצח! 🏆':'שחקן 2 ניצח! 🏆'); stopDuel(`הדו-קרב נגמר! ${w}`); } updateDuelUI(); }
-    function startDuel(){ clearInterval(duel.timer); duel.active=true; duel.player=1; duel.timeLeft=60; duel.scores=[0,0,0]; updateDuelUI(); ctx.clearRect(0,0,canvas.width,canvas.height); duel.timer=setInterval(()=>{ duel.timeLeft--; if(duel.timeLeft<=0) switchTurn(); updateDuelUI(); },1000); alert('התחלנו! שחקן 1 מצייר עכשיו.'); }
-
-    // Pointer events = better desktop + mobile reliability
     canvas.addEventListener('pointerdown', (e)=>{ canvas.setPointerCapture(e.pointerId); startDraw(e); });
     canvas.addEventListener('pointermove', draw);
     canvas.addEventListener('pointerup', endDraw);
@@ -272,15 +245,15 @@
     document.getElementById('templateSelect').onchange=e=>drawTemplate(e.target.value);
     document.getElementById('loadTemplate').onclick=()=>drawTemplate(document.getElementById('templateSelect').value);
 
+    document.getElementById('smartFill').onclick=(e)=>{ smartFill=!smartFill; e.target.classList.toggle('active', smartFill); e.target.textContent = smartFill ? '🔒 צביעה בתוך קווים' : '🔓 צביעה חופשית'; };
+
     document.getElementById('stamp-star').onclick=()=>stampMode='star';
     document.getElementById('stamp-heart').onclick=()=>stampMode='heart';
     document.getElementById('stamp-flower').onclick=()=>stampMode='flower';
     document.getElementById('stamp-smile').onclick=()=>stampMode='smile';
 
     document.getElementById('clear').onclick=()=>{ pushHistory(); ctx.clearRect(0,0,canvas.width,canvas.height); awardStars(1); };
-    document.getElementById('newChallenge').onclick=()=>{ challengeEl.textContent='משימה: '+challenges[Math.floor(Math.random()*challenges.length)]; awardStars(1); };
     document.getElementById('save').onclick=()=>{ const dataUrl=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=dataUrl; a.download=`kid-drawing-${Date.now()}.png`; a.click(); saveToGallery(dataUrl); awardStars(3); };
-    document.getElementById('startDuel').onclick=startDuel;
 
     // Mobile shortcuts
     document.getElementById('m-pen').onclick=()=>setTool('pen');
@@ -293,7 +266,6 @@
     document.getElementById('m-more').onclick=()=>advancedPanel.open=!advancedPanel.open;
 
     setBackground('white');
-    updateDuelUI();
   </script>
 </body>
 </html>
