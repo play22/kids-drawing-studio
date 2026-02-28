@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>סטודיו ציור לילדים</title>
+  <style>
+    :root {
+      --bg: #f4f7ff;
+      --card: #ffffff;
+      --soft: #eef2ff;
+      --ink: #1f2937;
+      --line: #dbe3ff;
+      --accent: #5b5bd6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      background: linear-gradient(130deg, #dbeafe, #f5d0fe 55%, #fef3c7);
+      min-height: 100vh;
+      padding: 14px;
+    }
+    .app {
+      max-width: 1180px;
+      margin: 0 auto;
+      background: var(--card);
+      border-radius: 18px;
+      box-shadow: 0 16px 40px rgba(0,0,0,.14);
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+    }
+    .top {
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .group {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 6px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .label { font-weight: 700; font-size: 13px; color: #374151; }
+    button, select, input[type="range"], input[type="color"] {
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      background: #fff;
+      padding: 7px 10px;
+      font-size: 14px;
+    }
+    button { cursor: pointer; font-weight: 600; }
+    button.active { outline: 3px solid #11182722; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      padding: 0;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px #cbd5e1;
+    }
+    .canvas-wrap {
+      display: grid;
+      grid-template-columns: 1fr 270px;
+      gap: 10px;
+      padding: 10px;
+    }
+    .board-box {
+      border: 2px dashed #93c5fd;
+      border-radius: 14px;
+      background: #fff;
+      overflow: hidden;
+      min-height: 520px;
+      display: grid;
+      place-items: center;
+    }
+    canvas {
+      width: min(100%, 900px);
+      aspect-ratio: 16 / 10;
+      touch-action: none;
+      background: #fff;
+      display: block;
+    }
+    .side {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .cards button { text-align: center; padding: 8px 4px; }
+    .score { font-size: 15px; font-weight: 800; color: #0f766e; }
+    .challenge {
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 10px;
+      padding: 7px;
+      font-weight: 700;
+      color: #3730a3;
+    }
+    .hint { font-size: 12px; color: #6b7280; }
+    @media (max-width: 950px) {
+      .canvas-wrap { grid-template-columns: 1fr; }
+      .side { order: -1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="top">
+      <div class="row">
+        <div class="group">
+          <span class="label">כלים</span>
+          <button id="tool-pen" class="active">✏️ טוש</button>
+          <button id="tool-eraser">🧽 מחק</button>
+          <button id="tool-fill">🪣 מילוי</button>
+          <button id="undo">↩️ בטל</button>
+          <button id="redo">↪️ החזר</button>
+        </div>
+
+        <div class="group">
+          <span class="label">צבע</span>
+          <button class="swatch" data-color="#ef4444" style="background:#ef4444"></button>
+          <button class="swatch" data-color="#f59e0b" style="background:#f59e0b"></button>
+          <button class="swatch" data-color="#22c55e" style="background:#22c55e"></button>
+          <button class="swatch" data-color="#3b82f6" style="background:#3b82f6"></button>
+          <button class="swatch" data-color="#a855f7" style="background:#a855f7"></button>
+          <button class="swatch" data-color="#111827" style="background:#111827"></button>
+          <input id="customColor" type="color" value="#ef4444" title="בחירת צבע" />
+        </div>
+
+        <div class="group">
+          <span class="label">עובי</span>
+          <input id="size" type="range" min="2" max="40" value="7" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="group">
+          <span class="label">רקע</span>
+          <select id="background">
+            <option value="white">לבן</option>
+            <option value="sky">שמיים</option>
+            <option value="grass">דשא</option>
+            <option value="sunset">שקיעה</option>
+          </select>
+        </div>
+
+        <div class="group">
+          <span class="label">דף צביעה</span>
+          <select id="templateSelect">
+            <option value="none">בלי תבנית</option>
+            <option value="house">בית</option>
+            <option value="cat">חתול</option>
+            <option value="butterfly">פרפר</option>
+            <option value="rocket">חללית</option>
+          </select>
+          <button id="loadTemplate">הצג תבנית</button>
+        </div>
+
+        <button id="stamp-star">⭐ חותמת כוכב</button>
+        <button id="stamp-heart">💖 חותמת לב</button>
+        <button id="stamp-flower">🌸 חותמת פרח</button>
+
+        <button id="clear">נקה</button>
+        <button id="save" class="primary">שמור ציור</button>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <div class="board-box">
+        <canvas id="board" width="960" height="600"></canvas>
+      </div>
+
+      <aside class="side">
+        <div class="challenge" id="challenge">משימה: ציירי גן שעשועים 🎠</div>
+        <button id="newChallenge" class="primary">משימה חדשה</button>
+        <div class="score">כוכבים: <span id="stars">0</span> ⭐</div>
+
+        <div class="label">גלריית ציורים שמורים</div>
+        <div id="gallery" class="cards"></div>
+
+        <div class="hint">טיפ: עם 🪣 מילוי לוחצים בתוך צורה סגורה כדי לצבוע מהר.</div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const starsEl = document.getElementById('stars');
+    const challengeEl = document.getElementById('challenge');
+    const galleryEl = document.getElementById('gallery');
+
+    const challenges = [
+      'ציירי גן שעשועים 🎠',
+      'ציירי נסיכה וכתר 👑',
+      'ציירי דינוזאור ידידותי 🦕',
+      'ציירי ארמון קסום 🏰',
+      'ציירי חלל עם כוכבים 🚀',
+      'ציירי חד־קרן 🦄',
+      'ציירי חוף ים קיצי 🏖️'
+    ];
+
+    let color = '#ef4444';
+    let brush = 7;
+    let drawing = false;
+    let tool = 'pen';
+    let stars = 0;
+    let stampMode = null;
+
+    const history = [];
+    const future = [];
+
+    function pushHistory() {
+      history.push(canvas.toDataURL('image/png'));
+      if (history.length > 25) history.shift();
+      future.length = 0;
+    }
+
+    function restoreFrom(dataUrl) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      };
+      img.src = dataUrl;
+    }
+
+    function setBackground(kind) {
+      const g = {
+        white: '#ffffff',
+        sky: '#e0f2fe',
+        grass: '#dcfce7',
+        sunset: '#fde68a'
+      }[kind] || '#ffffff';
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+
+    function getPos(e) {
+      const r = canvas.getBoundingClientRect();
+      const t = e.touches?.[0] || e;
+      return {
+        x: Math.round((t.clientX - r.left) * (canvas.width / r.width)),
+        y: Math.round((t.clientY - r.top) * (canvas.height / r.height))
+      };
+    }
+
+    function startDraw(e) {
+      e.preventDefault();
+      const p = getPos(e);
+
+      if (stampMode) {
+        pushHistory();
+        drawStamp(stampMode, p.x, p.y);
+        stampMode = null;
+        return;
+      }
+
+      if (tool === 'fill') {
+        pushHistory();
+        floodFill(p.x, p.y, hexToRgba(color));
+        stars += 1;
+        starsEl.textContent = stars;
+        return;
+      }
+
+      drawing = true;
+      pushHistory();
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    }
+
+    function draw(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      const p = getPos(e);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = brush;
+      ctx.strokeStyle = tool === 'eraser' ? '#ffffff' : color;
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+
+    function endDraw() { drawing = false; }
+
+    function setTool(next) {
+      tool = next;
+      stampMode = null;
+      document.querySelectorAll('[id^="tool-"]').forEach(b => b.classList.remove('active'));
+      document.getElementById(`tool-${next}`).classList.add('active');
+    }
+
+    function drawStamp(type, x, y) {
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+
+      if (type === 'star') {
+        const spikes = 5, outer = 28, inner = 12;
+        let rot = Math.PI / 2 * 3;
+        let cx = x, cy = y;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - outer);
+        for (let i = 0; i < spikes; i++) {
+          ctx.lineTo(cx + Math.cos(rot) * outer, cy + Math.sin(rot) * outer);
+          rot += Math.PI / spikes;
+          ctx.lineTo(cx + Math.cos(rot) * inner, cy + Math.sin(rot) * inner);
+          rot += Math.PI / spikes;
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      if (type === 'heart') {
+        ctx.beginPath();
+        ctx.moveTo(x, y + 12);
+        ctx.bezierCurveTo(x - 30, y - 18, x - 55, y + 24, x, y + 52);
+        ctx.bezierCurveTo(x + 55, y + 24, x + 30, y - 18, x, y + 12);
+        ctx.fill();
+      }
+
+      if (type === 'flower') {
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI * 2 / 6) * i;
+          const px = x + Math.cos(a) * 22;
+          const py = y + Math.sin(a) * 22;
+          ctx.beginPath();
+          ctx.arc(px, py, 13, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.arc(x, y, 12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+      stars += 1;
+      starsEl.textContent = stars;
+    }
+
+    function loadTemplate(name) {
+      pushHistory();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 4;
+
+      if (name === 'house') {
+        ctx.strokeRect(300, 250, 360, 230);
+        ctx.beginPath();
+        ctx.moveTo(280, 250); ctx.lineTo(480, 120); ctx.lineTo(680, 250); ctx.stroke();
+        ctx.strokeRect(445, 360, 70, 120);
+        ctx.strokeRect(355, 300, 70, 60);
+        ctx.strokeRect(535, 300, 70, 60);
+      }
+
+      if (name === 'cat') {
+        ctx.beginPath();
+        ctx.arc(480, 320, 130, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(390, 220); ctx.lineTo(430, 130); ctx.lineTo(470, 220);
+        ctx.moveTo(490, 220); ctx.lineTo(530, 130); ctx.lineTo(570, 220); ctx.stroke();
+        ctx.beginPath(); ctx.arc(435, 305, 12, 0, Math.PI * 2); ctx.arc(525, 305, 12, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(480, 350, 16, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      if (name === 'butterfly') {
+        ctx.beginPath();
+        ctx.ellipse(410, 320, 110, 140, 0.6, 0, Math.PI * 2);
+        ctx.ellipse(550, 320, 110, 140, -0.6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(480, 170); ctx.lineTo(480, 470); ctx.stroke();
+      }
+
+      if (name === 'rocket') {
+        ctx.beginPath();
+        ctx.moveTo(480, 120); ctx.lineTo(570, 270); ctx.lineTo(570, 450); ctx.lineTo(390, 450); ctx.lineTo(390, 270); ctx.closePath(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(480, 280, 45, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(390, 420); ctx.lineTo(320, 470); ctx.lineTo(390, 470); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(570, 420); ctx.lineTo(640, 470); ctx.lineTo(570, 470); ctx.stroke();
+      }
+
+      if (name !== 'none') {
+        stars += 2;
+        starsEl.textContent = stars;
+      }
+    }
+
+    function hexToRgba(hex) {
+      const h = hex.replace('#', '');
+      return [
+        parseInt(h.substring(0,2),16),
+        parseInt(h.substring(2,4),16),
+        parseInt(h.substring(4,6),16),
+        255
+      ];
+    }
+
+    function floodFill(x, y, newColor) {
+      const img = ctx.getImageData(0,0,canvas.width,canvas.height);
+      const d = img.data;
+      const idx = (y * canvas.width + x) * 4;
+      const target = [d[idx], d[idx+1], d[idx+2], d[idx+3]];
+      if (target[0]===newColor[0] && target[1]===newColor[1] && target[2]===newColor[2] && target[3]===newColor[3]) return;
+
+      const stack = [[x,y]];
+      const match = (i) => d[i]===target[0] && d[i+1]===target[1] && d[i+2]===target[2] && d[i+3]===target[3];
+
+      while (stack.length) {
+        const [cx, cy] = stack.pop();
+        if (cx < 0 || cy < 0 || cx >= canvas.width || cy >= canvas.height) continue;
+        const i = (cy * canvas.width + cx) * 4;
+        if (!match(i)) continue;
+
+        d[i] = newColor[0]; d[i+1] = newColor[1]; d[i+2] = newColor[2]; d[i+3] = newColor[3];
+
+        stack.push([cx+1, cy]);
+        stack.push([cx-1, cy]);
+        stack.push([cx, cy+1]);
+        stack.push([cx, cy-1]);
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    function saveToGallery(dataUrl) {
+      const btn = document.createElement('button');
+      btn.textContent = `ציור ${galleryEl.children.length + 1}`;
+      btn.onclick = () => restoreFrom(dataUrl);
+      galleryEl.prepend(btn);
+      if (galleryEl.children.length > 8) galleryEl.removeChild(galleryEl.lastChild);
+    }
+
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    window.addEventListener('mouseup', endDraw);
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+    window.addEventListener('touchend', endDraw);
+
+    document.getElementById('tool-pen').onclick = () => setTool('pen');
+    document.getElementById('tool-eraser').onclick = () => setTool('eraser');
+    document.getElementById('tool-fill').onclick = () => setTool('fill');
+
+    document.getElementById('undo').onclick = () => {
+      if (!history.length) return;
+      future.push(canvas.toDataURL('image/png'));
+      restoreFrom(history.pop());
+    };
+
+    document.getElementById('redo').onclick = () => {
+      if (!future.length) return;
+      history.push(canvas.toDataURL('image/png'));
+      restoreFrom(future.pop());
+    };
+
+    document.querySelectorAll('.swatch').forEach((btn, i) => {
+      if (i === 0) btn.classList.add('active');
+      btn.onclick = () => {
+        document.querySelectorAll('.swatch').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        color = btn.dataset.color;
+        document.getElementById('customColor').value = color;
+      };
+    });
+
+    document.getElementById('customColor').oninput = (e) => {
+      color = e.target.value;
+      document.querySelectorAll('.swatch').forEach(b => b.classList.remove('active'));
+    };
+
+    document.getElementById('size').oninput = (e) => brush = Number(e.target.value);
+    document.getElementById('background').onchange = (e) => { pushHistory(); setBackground(e.target.value); };
+
+    document.getElementById('loadTemplate').onclick = () => {
+      loadTemplate(document.getElementById('templateSelect').value);
+    };
+
+    document.getElementById('stamp-star').onclick = () => stampMode = 'star';
+    document.getElementById('stamp-heart').onclick = () => stampMode = 'heart';
+    document.getElementById('stamp-flower').onclick = () => stampMode = 'flower';
+
+    document.getElementById('clear').onclick = () => {
+      pushHistory();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      stars += 1;
+      starsEl.textContent = stars;
+    };
+
+    document.getElementById('newChallenge').onclick = () => {
+      challengeEl.textContent = 'משימה: ' + challenges[Math.floor(Math.random()*challenges.length)];
+      stars += 1;
+      starsEl.textContent = stars;
+    };
+
+    document.getElementById('save').onclick = () => {
+      const dataUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `kid-drawing-${Date.now()}.png`;
+      a.click();
+      saveToGallery(dataUrl);
+      stars += 3;
+      starsEl.textContent = stars;
+    };
+
+    // init
+    setBackground('white');
+  </script>
+</body>
+</html>
